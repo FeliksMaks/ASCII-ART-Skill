@@ -1,6 +1,6 @@
 # ASCII-ART-Skill
 
-An agent skill for ASCII art and ASCII motion graphics, in two modes:
+An agent skill for ASCII art and ASCII motion graphics, in three modes:
 
 1. **A model writes the animation.** Any LLM behind an OpenAI-compatible chat API, local or hosted, writes a small Python
    function, `frame(t)`, that draws one frame of an ASCII animation. The skill checks the code, runs it with limits, has
@@ -8,6 +8,8 @@ An agent skill for ASCII art and ASCII motion graphics, in two modes:
    tok/s.
 2. **A photo becomes ASCII art.** Any image becomes text, a PNG or a short video (reveal, zoom, pan, scan or glitch), in
    mono or in the photo's colours. No model is needed for this mode.
+3. **A video becomes an ASCII video.** Each frame of a clip is converted, in mono, in colour or as half-block pixel art,
+   and rendered to MP4 with the original sound. The output goes up to 4K.
 
 ![A frame of a model-written ASCII animation](assets/sample.png)
 
@@ -21,10 +23,12 @@ skills/ascii-motion-graphics/
   scripts/frames.py runs frame(t) in a child process with restricted builtins and a time limit per frame
   scripts/render.py frames to PNG stills or an H.264 MP4 (1920x1080, 30 fps), mono shading or per-character colour
   scripts/photo.py  a photo or image to ASCII frames: character sets, colour, outlines, motion
+  scripts/video.py  a video to ASCII or half-block frames, colour, one brightness range for the whole clip
+  scripts/halfblock.py  shared code for half-block cells
   scripts/stats.py  tokens, time and tok/s of the answers used
 ```
 
-You need Python 3.9 or newer and Pillow, and the MP4 also needs ffmpeg on PATH. `ask.py`, `check.py`, `frames.py` and
+You need Python 3.9 or newer and Pillow. The MP4 needs ffmpeg on PATH, and video input needs ffmpeg and ffprobe. `ask.py`, `check.py`, `frames.py` and
 `stats.py` use only the standard library.
 
 ## Install
@@ -67,12 +71,19 @@ python -I scripts/photo.py photo.jpg work/me --cols 140 --color --motion reveal
 python -I scripts/render.py work/me.json work/me.mp4 --loops 1
 ```
 
+To convert a video, keeping its sound:
+
+```bash
+python -I scripts/video.py clip.mp4 work/v --color --fps 24
+python -I scripts/render.py work/v.json work/v.mp4 --loops 1 --fps 24 --audio clip.mp4
+```
+
 ## Safety
 
 Model-written code is data until it passes `check.py` and you have read it. `frames.py` then runs it in a separate
 process that can import only `math`, gets a short list of builtins, and is stopped if a frame takes longer than 10 s.
 These are filters, not a sandbox, so do not run code that fails them. Images given to `photo.py` are only read as
-pixels.
+pixels, and videos are only decoded to pixels by ffmpeg.
 
 ## License
 

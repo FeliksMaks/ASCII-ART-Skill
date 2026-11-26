@@ -1,22 +1,24 @@
 ---
 name: ascii-motion-graphics
-description: Make ASCII art and ASCII motion graphics. (1) Have an LLM (any model, local or hosted, over an OpenAI-compatible chat API) write an ASCII animation program, check it safely, refine it from feedback and render it to MP4 or PNG, with run stats (tokens, time, tok/s). (2) Turn a photo or image into ASCII art - text, PNG or a short video (reveal, zoom, pan, scan, glitch), mono or in the photo's colours. Use when asked for ASCII art, an ASCII animation, a terminal-style motion graphic, a photo as ASCII, or a "the model wrote this" demo video.
+description: Make ASCII art and ASCII motion graphics. (1) Have an LLM (any model, local or hosted, over an OpenAI-compatible chat API) write an ASCII animation program, check it safely, refine it from feedback and render it to MP4 or PNG, with run stats (tokens, time, tok/s). (2) Turn a photo or image into ASCII art - text, PNG or a short video (reveal, zoom, pan, scan, glitch), mono or in the photo's colours. (3) Turn a video into an ASCII video, with its colours and sound. Use when asked for ASCII art, an ASCII animation, a terminal-style motion graphic, a photo or video as ASCII, or a "the model wrote this" demo video.
 ---
 
 # ASCII art and motion graphics
 
-Two modes:
+Three modes:
 
 - **A model writes the animation.** The model writes one pure function, `frame(t)`, that returns the text of one frame.
   You check the code, run it, and draw the frames to a video. The model never runs anything itself, so this works safely
   with any model, and the frames come out the same on every run.
 - **A photo becomes ASCII art.** `scripts/photo.py` converts an image, with no model involved.
+- **A video becomes an ASCII video.** `scripts/video.py` converts a clip frame by frame, and `render.py` can keep its
+  sound.
 
 ## What you need
 
 - For the model mode, a chat endpoint: `POST <base>/v1/chat/completions` (llama.cpp server, vLLM, LM Studio, Ollama's
   `/v1`, OpenRouter...).
-- Python 3.9+ with Pillow. The MP4 also needs ffmpeg on PATH.
+- Python 3.9+ with Pillow. The MP4 needs ffmpeg on PATH, and video input needs ffmpeg and ffprobe.
 - A monospace font. `render.py` tries Cascadia Mono, Consolas, DejaVu Sans Mono and Menlo, or you can pass `--font`.
 
 ## The contract the scripts rely on
@@ -91,6 +93,27 @@ python -I scripts/render.py work/me.json work/me.mp4 --loops 1
 - For a model-written animation built on a photo, put `work/me.txt` in the prompt and let `frame(t)` move or light it.
   The same checks apply.
 
+## Video to ASCII video
+
+```
+python -I scripts/video.py clip.mp4 work/v --color --fps 24 --start 3 --duration 15
+python -I scripts/render.py work/v.json work/v.png --still 0,100             # check the look first
+python -I scripts/render.py work/v.json work/v.mp4 --loops 1 --fps 24 --audio clip.mp4 --audio-start 3
+```
+
+- Use the same `--fps` in both commands, and the same `--start` and `--audio-start`. `work/v.meta.json` records both.
+- One brightness range is measured over the whole clip, so the result does not flicker. `--gamma`, `--contrast`,
+  `--edges`, `--invert`, `--ramp`, `--color` and `--true-color` work as for photos.
+- Detail comes from the number of characters, not from the video's resolution. The defaults are 200 columns and the
+  70-level `fine` ramp; at 1080p you can go to 240 columns.
+- For finer text, add `--size 3840x2160 --crf 14` to `render.py` and use up to ~400 columns. `--crf` sets the H.264
+  quality: lower is better and bigger.
+- `--mode halfblock` draws two coloured pixels per cell, the upper and lower half, instead of characters. It is the
+  closest to the original picture and reads as pixel art rather than ASCII.
+- Frames are held in memory and in the JSON, so `--max-seconds` (default 60) guards against long clips. Cut a longer
+  video into parts, or lower `--cols` and `--fps`.
+- Phone videos recorded upright are turned by ffmpeg, and the grid follows their shape.
+
 ## Don't
 
 - Don't run model code before it passes `check.py` and your own reading.
@@ -104,4 +127,7 @@ python -I scripts/render.py work/me.json work/me.mp4 --loops 1
 - `scripts/frames.py`: runs `frame(t)` in a child process with restricted builtins and time limits, and checks the shape.
 - `scripts/render.py`: draws frames to PNG stills or an MP4, in mono shading or one colour per character.
 - `scripts/photo.py`: turns a photo or image into ASCII frames, with optional colours and motion.
+- `scripts/video.py`: turns a video into ASCII (or half-block) frames, with optional colours. `render.py --audio` keeps
+  its sound.
+- `scripts/halfblock.py`: the half-block cells, shared code.
 - `scripts/stats.py`: adds up the numbers for a post.
